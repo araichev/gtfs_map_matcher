@@ -3,3 +3,4 @@
 *.pyc
 ipynb/.ipynb_checkpoints
 output/
+secrets.json
