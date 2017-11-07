@@ -3,7 +3,6 @@ certifi==2017.7.27.1
 chardet==3.0.4
 decorator==4.1.2
 entrypoints==0.2.3
-googlemaps==2.5.1
 gtfstk==9.0.2
 html5lib==1.0b10
 idna==2.6
