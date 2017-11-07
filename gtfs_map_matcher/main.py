@@ -1,4 +1,8 @@
+import pandas as pd
 import numpy as np
+import requests
+
+from . import matchers
 
 
 def insert_points_by_num(xs, n):
@@ -88,7 +92,7 @@ def get_stop_patterns(feed, sep='-'):
 
     return feed.trips.merge(f)
 
-def build_sample_points(feed, trip_ids=None, num_points=100, point_dist=None):
+def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
     """
     Given a GTFS feed (GTFSTK Feed instance),
     preferably with a ``feed.stop_times.shape_dist_traveled`` column,
@@ -229,3 +233,76 @@ def build_sample_points(feed, trip_ids=None, num_points=100, point_dist=None):
             points_by_sp[stop_pattern] = points
 
     return points_by_sp
+
+def map_match(feed, service, api_key, custom_url=None, service_kwargs=None,
+  route_types=[0, 3, 5], num_points=100, point_dist=None):
+    """
+    """
+    # Get sample points for stop patterns of the given route types
+    t = feed.trips.merge(feed.routes)
+    t = t[t['route_type'].isin(route_types)].copy()
+    points_by_pattern = sample_trip_points(feed, t.trip_id,
+      num_points=num_points, point_dist=point_dist)
+
+    # Match sample points to map
+    if service == 'mapzen':
+        if custom_url is not None:
+            def matcher(points):
+                return matchers.match_with_mapzen(points, api_key,
+                  url=custom_url, kwargs=service_kwargs)
+        else:
+            def matcher(points):
+                return matchers.match_with_mapzen(points, api_key,
+                  kwargs=service_kwargs)
+
+    elif service == 'osrm':
+        if custom_url is not None:
+            def matcher(points):
+                return matchers.match_with_osrm(points, api_key,
+                  url=custom_url, kwargs=service_kwargs)
+        else:
+            def matcher(points):
+                return matchers.match_with_osrm(points, api_key,
+                  kwargs=service_kwargs)
+
+    elif service == 'mapbox':
+        def matcher(points):
+            return matchers.match_with_mapbox(points, api_key,
+              kwargs=service_kwargs)
+
+    elif service == 'google':
+        def matcher(points):
+            return matchers.match_with_google(points, api_key)
+
+    else:
+        valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
+        raise ValueError('Service must be one of {!s}'.format(
+          valid_services))
+
+    print('Map matching {!s} stop patterns...'.format(len(points_by_pattern)))
+    mpoints_by_pattern = {}
+    for i, (pattern, points) in enumerate(points_by_pattern.items()):
+        print(i + 1)
+        try:
+            mpoints = matcher(points)
+            if mpoints:
+                mpoints_by_pattern[pattern] = mpoints
+        except requests.HTTPError:
+            # Skip failed match
+            continue
+
+    # Create new feed with matched shapes found and old shapes
+    # for the rest of the trips
+    t = get_stop_patterns(feed)
+    t = t[t['stop_pattern'].isin(mpoints_by_pattern)].copy()
+    mpoints_by_shape = {shape: mpoints_by_pattern[pattern]
+      for shape, pattern in t[['shape_id', 'stop_pattern']].values}
+    S = [[shape, i, lon, lat] for shape, mpoints in mpoints_by_shape.items()
+      for i, (lon, lat) in enumerate(mpoints)]
+    new_shapes = pd.DataFrame(S, columns=['shape_id', 'shape_pt_sequence',
+      'shape_pt_lon', 'shape_pt_lat'])
+    feed = feed.copy()
+    feed.shapes.loc[feed.shapes['shape_id'].isin(new_shapes.shape_id)] =\
+        new_shapes
+
+    return feed

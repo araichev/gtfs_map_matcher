@@ -1,6 +1,8 @@
+"""
+API functions for several popular map matching services.
+"""
 import polyline
 import requests
-import googlemaps
 
 
 # Mapzen map matching functions ----------
@@ -29,12 +31,12 @@ def match_with_mapzen(points, api_key,
     """
     data = {
         'shape': encode_points_mapzen(points),
-        'costing': 'auto',
+        'costing': 'auto',  # Why doesn't 'bus' work?
     }
     if kwargs is not None:
         data.update(kwargs)
 
-    r = requests.post(url, params={'api_key': api_key}, json=data)
+    r = requests.post(base_url, params={'api_key': api_key}, json=data)
     r.raise_for_status()
     return parse_response_mapzen(r.json())
 
@@ -59,16 +61,20 @@ def parse_response_osrm(response):
         pline.extend(polyline.decode(m['geometry'], 6))
     return [(p[1], p[0]) for p in pline]
 
-def match_with_osrm(points, profile='car',
-  url='http://router.project-osrm.org/match/v1'):
+def match_with_osrm(points,
+  url='http://router.project-osrm.org/match/v1/car', kwargs=None):
     """
     Public server accepts at most 100 points.
     """
-    url = '{!s}/{!s}/{!s}'.format(url, profile,
+    url = '{!s}/{!s}'.format(url,
       encode_points_mapbox(points))
     params = {
         'geometries': 'polyline6',
+        'overview': 'full',
     }
+    if kwargs is not None:
+        params.update(kwargs)
+
     r = requests.get(url, params=params)
     r.raise_for_status()
     return parse_response_osrm(r.json())
@@ -95,17 +101,21 @@ def parse_response_mapbox(response):
         pline.extend(polyline.decode(m['geometry'], 6))
     return [(p[1], p[0]) for p in pline]
 
-def match_with_mapbox(points, api_key, profile='driving'):
+def match_with_mapbox(points, api_key, kwargs=None):
     """
     Accepts at most 100 points.
     """
-    url='https://api.mapbox.com/matching/v5/mapbox'
-    url = '{!s}/{!s}/{!s}'.format(url, profile,
+    url='https://api.mapbox.com/matching/v5/mapbox/driving'
+    url = '{!s}/{!s}'.format(url,
       encode_points_mapbox(points))
     params = {
         'access_token': api_key,
         'geometries': 'polyline6',
+        'overview': 'full',
     }
+    if kwargs is not None:
+        params.update(kwargs)
+
     r = requests.get(url, params=params)
     r.raise_for_status()
     return parse_response_mapbox(r.json())
@@ -126,8 +136,12 @@ def decode_points_google(points):
     return [[float(x) for x in p.split(',')[::-1]] for p in points.split('|')]
 
 def parse_response_google(response):
-    return [[p['location']['longitude'], p['location']['latitude']]
-        for p in response['snappedPoints']]
+    if 'snappedPoints' in response:
+        points = [[p['location']['longitude'], p['location']['latitude']]
+          for p in response['snappedPoints']]
+    else:
+        points = []
+    return points
 
 def match_with_google(points, api_key):
     """
