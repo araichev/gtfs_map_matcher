@@ -145,6 +145,7 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
 
     # Get stop patterns and choose a representative trip for each one
     t = get_stop_patterns(feed)
+    t = t[t['trip_id'].isin(trip_ids)].copy()
     t = t.sort_values(['stop_pattern', 'shape_id'])\
       .groupby('stop_pattern').agg('first').reset_index()
     trip_ids = t.trip_id
@@ -234,62 +235,48 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
 
     return points_by_sp
 
-def map_match(feed, service, api_key, custom_url=None, service_kwargs=None,
-  route_types=[0, 3, 5], num_points=100, point_dist=None):
+def create_shapes(feed, service, api_key, custom_url=None,
+  route_types=[0, 3, 5], trip_ids=None, num_points=100, point_dist=None,
+  **kwargs):
     """
+    If a list of trip IDs is given then only create shapes for those
+    trips.
     """
-    # Get sample points for stop patterns of the given route types
-    t = feed.trips.merge(feed.routes)
-    t = t[t['route_type'].isin(route_types)].copy()
+    # Get sample points by stop pattern
+    t = feed.trips
+    if trip_ids is not None:
+        t = t[t['trip_id'].isin(trip_ids)].copy()
+    else:
+        t = t.merge(feed.routes)
+        t = t[t['route_type'].isin(route_types)].copy()
     points_by_pattern = sample_trip_points(feed, t.trip_id,
       num_points=num_points, point_dist=point_dist)
 
-    # Match sample points to map
+    # Map match sample points
     if service == 'mapzen':
         if custom_url is not None:
-            def matcher(points):
-                return matchers.match_with_mapzen(points, api_key,
-                  url=custom_url, kwargs=service_kwargs)
+            mpoints_by_pattern = matchers.map_match_mapzen(
+              points_by_pattern, api_key, url=custom_url, **kwargs)
         else:
-            def matcher(points):
-                return matchers.match_with_mapzen(points, api_key,
-                  kwargs=service_kwargs)
-
+            mpoints_by_pattern = matchers.map_match_mapzen(
+              points_by_pattern, api_key, **kwargs)
     elif service == 'osrm':
         if custom_url is not None:
-            def matcher(points):
-                return matchers.match_with_osrm(points, api_key,
-                  url=custom_url, kwargs=service_kwargs)
+            mpoints_by_pattern = matchers.map_match_osrm(
+              points_by_pattern, api_key, url=custom_url, **kwargs)
         else:
-            def matcher(points):
-                return matchers.match_with_osrm(points, api_key,
-                  kwargs=service_kwargs)
-
+            mpoints_by_pattern = matchers.map_match_osrm(
+              points_by_pattern, api_key, **kwargs)
     elif service == 'mapbox':
-        def matcher(points):
-            return matchers.match_with_mapbox(points, api_key,
-              kwargs=service_kwargs)
-
+        mpoints_by_pattern = matchers.map_match_mapbox(
+          points_by_pattern, api_key, **kwargs)
     elif service == 'google':
-        def matcher(points):
-            return matchers.match_with_google(points, api_key)
-
+        mpoints_by_pattern = matchers.map_match_google(
+          points_by_pattern, api_key, **kwargs)
     else:
         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
         raise ValueError('Service must be one of {!s}'.format(
           valid_services))
-
-    print('Map matching {!s} stop patterns...'.format(len(points_by_pattern)))
-    mpoints_by_pattern = {}
-    for i, (pattern, points) in enumerate(points_by_pattern.items()):
-        print(i + 1)
-        try:
-            mpoints = matcher(points)
-            if mpoints:
-                mpoints_by_pattern[pattern] = mpoints
-        except requests.HTTPError:
-            # Skip failed match
-            continue
 
     # Create new feed with matched shapes found and old shapes
     # for the rest of the trips
@@ -302,7 +289,11 @@ def map_match(feed, service, api_key, custom_url=None, service_kwargs=None,
     new_shapes = pd.DataFrame(S, columns=['shape_id', 'shape_pt_sequence',
       'shape_pt_lon', 'shape_pt_lat'])
     feed = feed.copy()
-    feed.shapes.loc[feed.shapes['shape_id'].isin(new_shapes.shape_id)] =\
-        new_shapes
+
+    shapes = feed.shapes.copy()
+    feed.shapes = pd.concat([
+      shapes[~shapes.shape_id.isin(mpoints_by_shape)],
+      new_shapes,
+      ])
 
     return feed

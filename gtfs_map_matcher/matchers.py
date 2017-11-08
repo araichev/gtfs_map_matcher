@@ -1,9 +1,14 @@
 """
 API functions for several popular map matching services.
 """
+from functools import partial
+
 import polyline
 import requests
+from requests_futures.sessions import FuturesSession
 
+
+MAX_WORKERS = 50  # Max number of concurrent threads for async HTTP requests
 
 # Mapzen map matching functions ----------
 def encode_points_mapzen(points):
@@ -21,24 +26,46 @@ def decode_points_mapzen(points):
     return [[d['lon'], d['lat']] for d in points]
 
 def parse_response_mapzen(response):
-    pline = polyline.decode(response['trip']['legs'][0]['shape'], 6)
-    return [(p[1], p[0]) for p in pline]
+    try:
+        r = response.json()
+        pline = polyline.decode(r['trip']['legs'][0]['shape'], 6)
+        points = [(p[1], p[0]) for p in pline]
+    except KeyError:
+        points = []
+    return points
 
-def match_with_mapzen(points, api_key,
-  url='https://valhalla.mapzen.com/trace_route', kwargs=None):
+def map_match_mapzen(points_by_key, api_key,
+  url='https://valhalla.mapzen.com/trace_route',
+  **kwargs):
     """
-    Public server accepts at most 100 points.
+    Public server accepts at most 100 points per request.
     """
-    data = {
-        'shape': encode_points_mapzen(points),
-        'costing': 'auto',  # Why doesn't 'bus' work?
-    }
-    if kwargs is not None:
-        data.update(kwargs)
+    session = FuturesSession(max_workers=MAX_WORKERS)
+    params = {'api_key': api_key}
 
-    r = requests.post(base_url, params={'api_key': api_key}, json=data)
-    r.raise_for_status()
-    return parse_response_mapzen(r.json())
+    def build_data(points, **kwargs):
+        data = {
+          'shape': encode_points_mapzen(points),
+          'costing': 'auto',  # Why doesn't 'bus' work?
+          }
+        if kwargs:
+            data.update(kwargs)
+        return data
+
+    def parse(key, session, response):
+        mpoints = parse_response_mapzen(response)
+        if mpoints:
+            data = (key, mpoints)
+        else:
+            data = None
+        response.data = data
+
+    futures = (session.post(url, params=params,
+      json=build_data(points, **kwargs),
+      background_callback=partial(parse, key))
+      for key, points in points_by_key.items())
+
+    return dict([f.result().data for f in futures if f.result().data])
 
 # OSRM matching functions ----------
 def encode_points_osrm(points):
@@ -56,29 +83,46 @@ def decode_points_osrm(points):
     return [[float(x) for x in p.split(',')] for p in points.split(';')]
 
 def parse_response_osrm(response):
-    pline = []
-    for m in response['matchings']:
-        pline.extend(polyline.decode(m['geometry'], 6))
-    return [(p[1], p[0]) for p in pline]
+    try:
+        r = response.json()
+        pline = []
+        for m in r['matchings']:
+            pline.extend(polyline.decode(m['geometry'], 6))
+        points = [[p[1], p[0]] for p in pline]
+    except KeyError:
+        points = []
+    return points
 
-def match_with_osrm(points,
-  url='http://router.project-osrm.org/match/v1/car', kwargs=None):
+def map_match_osrm(points_by_key,
+  url='http://router.project-osrm.org/match/v1/car', **kwargs):
     """
-    Public server accepts at most 100 points.
+    Public server accepts at most 100 points per request.
     """
-    url = '{!s}/{!s}'.format(url,
-      encode_points_mapbox(points))
+    session = FuturesSession(max_workers=MAX_WORKERS)
+
+    def build_url(points):
+        return '{!s}/{!s}'.format(url, encode_points_osrm(points))
+
     params = {
         'geometries': 'polyline6',
         'overview': 'full',
     }
-    if kwargs is not None:
+    if kwargs:
         params.update(kwargs)
 
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    return parse_response_osrm(r.json())
+    def parse(key, session, response):
+        mpoints = parse_response_osrm(response)
+        if mpoints:
+            data = (key, mpoints)
+        else:
+            data = None
+        response.data = data
 
+    futures = (session.get(build_url(points), params=params,
+      background_callback=partial(parse, key))
+      for key, points in points_by_key.items())
+
+    return dict([f.result().data for f in futures if f.result().data])
 
 # Mapbox (which uses OSRM) map matching functions ----------
 def encode_points_mapbox(points):
@@ -96,29 +140,45 @@ def decode_points_mapbox(points):
     return [[float(x) for x in p.split(',')] for p in points.split(';')]
 
 def parse_response_mapbox(response):
-    pline = []
-    for m in response['matchings']:
-        pline.extend(polyline.decode(m['geometry'], 6))
-    return [(p[1], p[0]) for p in pline]
+    try:
+        r = response.json()
+        pline = []
+        for m in r['matchings']:
+            pline.extend(polyline.decode(m['geometry'], 6))
+        points = [[p[1], p[0]] for p in pline]
+    except KeyError:
+        points = []
+    return points
 
-def match_with_mapbox(points, api_key, kwargs=None):
-    """
-    Accepts at most 100 points.
-    """
-    url='https://api.mapbox.com/matching/v5/mapbox/driving'
-    url = '{!s}/{!s}'.format(url,
-      encode_points_mapbox(points))
+def map_match_mapbox(points_by_key, api_key, **kwargs):
+    session = FuturesSession(max_workers=MAX_WORKERS)
+
+    url = 'https://api.mapbox.com/matching/v5/mapbox/driving'
+
+    def build_url(points):
+        return '{!s}/{!s}'.format(url, encode_points_mapbox(points))
+
     params = {
         'access_token': api_key,
         'geometries': 'polyline6',
         'overview': 'full',
     }
-    if kwargs is not None:
+    if kwargs:
         params.update(kwargs)
 
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    return parse_response_mapbox(r.json())
+    def parse(key, session, response):
+        mpoints = parse_response_mapbox(response)
+        if mpoints:
+            data = (key, mpoints)
+        else:
+            data = None
+        response.data = data
+
+    futures = (session.get(build_url(points), params=params,
+      background_callback=partial(parse, key))
+      for key, points in points_by_key.items())
+
+    return dict([f.result().data for f in futures if f.result().data])
 
 # Google map matching functions -------------
 def encode_points_google(points):
@@ -136,23 +196,53 @@ def decode_points_google(points):
     return [[float(x) for x in p.split(',')[::-1]] for p in points.split('|')]
 
 def parse_response_google(response):
-    if 'snappedPoints' in response:
+    try:
+        r = response.json()
         points = [[p['location']['longitude'], p['location']['latitude']]
-          for p in response['snappedPoints']]
-    else:
+          for p in r['snappedPoints']]
+    except KeyError:
         points = []
     return points
 
-def match_with_google(points, api_key):
-    """
-    Accepts at most 100 points.
-    """
+def map_match_google(points_by_key, api_key):
+    session = FuturesSession(max_workers=MAX_WORKERS)
+
     url = 'https://roads.googleapis.com/v1/snapToRoads'
-    params = {
-        'key': api_key,
-        'path': encode_points_google(points),
-        'interpolate': True,
-    }
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    return parse_response_google(r.json())
+
+    def build_params(points):
+        return {
+          'key': api_key,
+          'path': encode_points_google(points),
+          'interpolate': True,
+          }
+
+    def parse(key, session, response):
+        mpoints = parse_response_google(response)
+        if mpoints:
+            data = (key, mpoints)
+        else:
+            data = None
+        response.data = data
+
+    futures = (session.get(url, params=build_params(points),
+      background_callback=partial(parse, key))
+      for key, points in points_by_key.items())
+
+    return dict([f.result().data for f in futures if f.result().data])
+
+# Match wrapper ----------
+def map_match(points_by_key, service, api_key, **kwargs):
+    """
+    """
+    if service == 'mapzen':
+        return map_match_mapzen(points_by_key, api_key, **kwargs)
+    elif service == 'osrm':
+        return map_match_osrm(points_by_key, **kwargs)
+    elif service == 'mapbox':
+        return map_match_mapbox(points_by_key, api_key, **kwargs)
+    elif service == 'google':
+        return map_match_google(points_by_key, api_key)
+    else:
+        valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
+        raise ValueError('Service must be one of {!s}'.format(
+          valid_services))
