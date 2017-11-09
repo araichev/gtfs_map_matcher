@@ -1,1 +1,3 @@
-{}
+{
+  "tests/test_main.py::test_build_sample_points": true
+}

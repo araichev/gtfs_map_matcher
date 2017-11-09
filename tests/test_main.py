@@ -30,6 +30,3 @@ def test_get_stop_patterns():
     p = get_stop_patterns(welly_feed)
     assert 'stop_pattern' in p.columns
     assert isinstance(p.stop_pattern.iat[0], str)
-
-def test_build_sample_points():
-    assert 1 == 0

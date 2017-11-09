@@ -5,6 +5,9 @@ import requests
 from . import matchers
 
 
+# GTFS route types of vehicles that travel on the road
+ROAD_ROUTE_TYPES = [0, 3, 5]
+
 def insert_points_by_num(xs, n):
     """
     Given a strictly increasing NumPy array ``xs`` of at least two
@@ -73,7 +76,7 @@ def insert_points_by_dist(xs, d):
     ys = np.array([i*d for i in range(len(bins)) if i not in filled_bins])
     return np.sort(np.concatenate([xs, ys]))
 
-def get_stop_patterns(feed, sep='-'):
+def get_stop_patterns(feed, trip_ids=None, sep='-'):
     """
     Append to the DataFrame``feed.trips`` the additional column
 
@@ -81,8 +84,12 @@ def get_stop_patterns(feed, sep='-'):
       trip joined by the separator ``sep``
 
     and return the resulting DataFrame.
+    Restrict to the given trip IDs (defaults to all trip IDs).
     """
     st = feed.stop_times.sort_values(['trip_id', 'stop_sequence'])
+
+    if trip_ids is not None:
+        st = st[st.trip_id.isin(trip_ids)].copy()
 
     def get_pattern(group):
         return group.stop_id.str.cat(sep=sep)
@@ -146,6 +153,9 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
     # Get stop patterns and choose a representative trip for each one
     t = get_stop_patterns(feed)
     t = t[t['trip_id'].isin(trip_ids)].copy()
+    if 'shape_id' not in t.columns:
+        # Insert NaN shape IDs for convenient processing later
+        t['shape_id'] = np.nan
     t = t.sort_values(['stop_pattern', 'shape_id'])\
       .groupby('stop_pattern').agg('first').reset_index()
     trip_ids = t.trip_id
@@ -169,11 +179,11 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
     geom_by_shape = feed.build_geometry_by_shape(shape_ids=t.shape_id) or {}
 
     # Build dict stop pattern -> list of (lon, lat) sample points.
-    # Since t contains unique stop patterns, no computations will be repeated.
-    points_by_sp = {}
+    # Since it contains unique stop patterns, no computations will be repeated.
+    points_by_pattern = {}
     if point_dist is not None:
         # Insert points into stop points by distance
-        for stop_pattern, group in st.groupby('stop_pattern'):
+        for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
             if (shape_id in geom_by_shape)\
               and group['shape_dist_traveled'].notnull().all():
@@ -189,11 +199,11 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
                 # Best can do is use the stop points
                 points = group[['stop_lon', 'stop_lat']].values.tolist()
 
-            points_by_sp[stop_pattern] = points
+            points_by_pattern[pattern] = points
     else:
         # Insert points into stop points by number
         n = num_points
-        for stop_pattern, group in st.groupby('stop_pattern'):
+        for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
             k = group.shape[0]  # Number of stops along trip
             if k < n and (shape_id in geom_by_shape)\
@@ -231,25 +241,60 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
                 # Best can do is use the stop points
                 points = group[['stop_lon', 'stop_lat']].values.tolist()
 
-            points_by_sp[stop_pattern] = points
+            points_by_pattern[pattern] = points
 
-    return points_by_sp
+    return points_by_pattern
+
+def _get_trip_ids(feed, route_types, trip_ids=None):
+    """
+    Helper function.
+    Given a GTFS feed (GTFSTK Feed instance), get the trip IDs of
+    the given route types.
+    If a list of trip IDs is given, then return those instead.
+    """
+    if trip_ids is None:
+        t = feed.trips.merge(feed.routes)
+        trip_ids = t.loc[t['route_type'].isin(route_types),
+          'trip_id']
+    return trip_ids
 
 def create_shapes(feed, service, api_key, custom_url=None,
-  route_types=[0, 3, 5], trip_ids=None, num_points=100, point_dist=None,
+  route_types=ROAD_ROUTE_TYPES, trip_ids=None, num_points=100, point_dist=None,
   **kwargs):
     """
-    If a list of trip IDs is given then only create shapes for those
-    trips.
+    Given a GTFS feed (GTFSTK Feed instance), the name of a map matching
+    web service (``'mapzen'``, ``'osrm'``, ``'mapbox'``, or
+    ``'google'``) and an API key for that service, do the following.
+
+    #. Select all trips of the given route types (defaults to road-based
+      route types) xor of the given trip IDs (defaults to all trip IDs).
+    #. Sample trip points using the function :func:`sample_trip_points`
+      with the arguments ``num_points`` and ``point_dist``.  Only one
+      sample per trip pattern will be created.
+    #. Snap the sample points to a map and route through those points
+      using the given web service via the appropriate map matching
+      function in the ``matchers`` module. Local Mapzen and OSRM
+      services can also be used by giving a custom URL. Service calls
+      are made asynchronously.
+    #. Use the new shapes obtained to replace the old shapes (if any)
+      of the selected trips only.  The shapes of other trips will
+      remain unchanged.
+    #. Return the resulting new GTFS feed.
+
+    NOTES:
+
+    - At present, the map matching services only work well for road
+      travel. Not yet suitable for rail, ferry, or gondola travel.
+    - One map matching API call is made per (unique) stop pattern of
+      the given trip set. Use the function
+      :func:`get_num_map_matching_calls` to compute the number of such
+      calls.
     """
+    # Select relevant trip IDs
+    trip_ids = _get_trip_ids(route_types, trip_ids)
+
     # Get sample points by stop pattern
-    t = feed.trips
-    if trip_ids is not None:
-        t = t[t['trip_id'].isin(trip_ids)].copy()
-    else:
-        t = t.merge(feed.routes)
-        t = t[t['route_type'].isin(route_types)].copy()
-    points_by_pattern = sample_trip_points(feed, t.trip_id,
+    points_by_pattern = sample_trip_points(feed, trip_ids,
       num_points=num_points, point_dist=point_dist)
 
     # Map match sample points
@@ -280,7 +325,7 @@ def create_shapes(feed, service, api_key, custom_url=None,
 
     # Create new feed with matched shapes found and old shapes
     # for the rest of the trips
-    t = get_stop_patterns(feed)
+    t = get_stop_patterns(feed, trip_ids)
     t = t[t['stop_pattern'].isin(mpoints_by_pattern)].copy()
     mpoints_by_shape = {shape: mpoints_by_pattern[pattern]
       for shape, pattern in t[['shape_id', 'stop_pattern']].values}
@@ -297,3 +342,18 @@ def create_shapes(feed, service, api_key, custom_url=None,
       ])
 
     return feed
+
+def get_num_map_matching_calls(feed, route_types=ROAD_ROUTE_TYPES,
+  trip_ids=None):
+    """
+    Return the number of unique stop patterns for the given GTFS feed
+    (GTFSTK Feed instance) and trip IDs (defaults to all trip IDs)
+    by calling the function :func:`get_stop_patterns` and counting
+    unique stop patterns.
+    This number also equals the number of map matching API calls
+    made by the function :func:`create_shapes` with the given
+    route types and trip IDs.
+    """
+    trip_ids = _get_trip_ids(feed, route_types, trip_ids)
+    p = get_stop_patterns(feed, trip_ids)
+    return p.stop_pattern.nunique()
