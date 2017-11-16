@@ -291,7 +291,7 @@ def create_shapes(feed, service, api_key, custom_url=None,
       calls.
     """
     # Select relevant trip IDs
-    trip_ids = _get_trip_ids(route_types, trip_ids)
+    trip_ids = _get_trip_ids(feed, route_types, trip_ids)
 
     # Get sample points by stop pattern
     points_by_pattern = sample_trip_points(feed, trip_ids,

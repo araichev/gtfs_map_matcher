@@ -217,7 +217,6 @@ def map_match_google(points_by_key, api_key):
           }
 
     def parse(key, session, response):
-        print(response.json())
         mpoints = parse_response_google(response)
         if mpoints:
             data = (key, mpoints)
