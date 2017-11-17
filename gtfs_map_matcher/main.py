@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import requests
 
 from . import matchers
 
@@ -258,7 +257,7 @@ def _get_trip_ids(feed, route_types, trip_ids=None):
           'trip_id']
     return trip_ids
 
-def create_shapes(feed, service, api_key, custom_url=None,
+def map_match_feed(feed, service, api_key, custom_url=None,
   route_types=ROAD_ROUTE_TYPES, trip_ids=None, num_points=100, point_dist=None,
   **kwargs):
     """
@@ -270,7 +269,8 @@ def create_shapes(feed, service, api_key, custom_url=None,
       route types) xor of the given trip IDs (defaults to all trip IDs).
     #. Sample trip points using the function :func:`sample_trip_points`
       with the arguments ``num_points`` and ``point_dist``.  Only one
-      sample per trip pattern will be created.
+      list of sample points per stop pattern (not per trip ID)
+      will be created.
     #. Snap the sample points to a map and route through those points
       using the given web service via the appropriate map matching
       function in the ``matchers`` module. Local Mapzen and OSRM
@@ -283,8 +283,12 @@ def create_shapes(feed, service, api_key, custom_url=None,
 
     NOTES:
 
+    - Extra parameters can be passed to the map matching function of
+      choice using the extra keyword arguments.
     - At present, the map matching services only work well for road
-      travel. Not yet suitable for rail, ferry, or gondola travel.
+      travel, hence the default setting
+      ``route_types=ROAD_ROUTE_TYPES``. Not yet suitable for rail,
+      ferry, or gondola travel.
     - One map matching API call is made per (unique) stop pattern of
       the given trip set. Use the function
       :func:`get_num_map_matching_calls` to compute the number of such

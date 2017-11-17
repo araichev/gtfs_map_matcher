@@ -230,19 +230,19 @@ def map_match_google(points_by_key, api_key):
 
     return dict([f.result().data for f in futures if f.result().data])
 
-# Match wrapper ----------
-def map_match(points_by_key, service, api_key, **kwargs):
-    """
-    """
-    if service == 'mapzen':
-        return map_match_mapzen(points_by_key, api_key, **kwargs)
-    elif service == 'osrm':
-        return map_match_osrm(points_by_key, **kwargs)
-    elif service == 'mapbox':
-        return map_match_mapbox(points_by_key, api_key, **kwargs)
-    elif service == 'google':
-        return map_match_google(points_by_key, api_key)
-    else:
-        valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
-        raise ValueError('Service must be one of {!s}'.format(
-          valid_services))
+# # Match wrapper ----------
+# def map_match(points_by_key, service, api_key, **kwargs):
+#     """
+#     """
+#     if service == 'mapzen':
+#         return map_match_mapzen(points_by_key, api_key, **kwargs)
+#     elif service == 'osrm':
+#         return map_match_osrm(points_by_key, **kwargs)
+#     elif service == 'mapbox':
+#         return map_match_mapbox(points_by_key, api_key, **kwargs)
+#     elif service == 'google':
+#         return map_match_google(points_by_key, api_key)
+#     else:
+#         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
+#         raise ValueError('Service must be one of {!s}'.format(
+#           valid_services))

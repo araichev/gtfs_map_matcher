@@ -1,7 +1,7 @@
 import re
 import responses
 
-from .context import welly_feed
+from .context import test_feed
 from gtfs_map_matcher import *
 
 
