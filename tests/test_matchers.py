@@ -17,7 +17,7 @@ points_by_key = {
 }
 
 @responses.activate
-def test_map_match_mapzen():
+def test_match_with_mapzen():
     # Create mock response
     url = 'https://valhalla.mapzen.com/trace_route'
     json = {
@@ -58,12 +58,12 @@ def test_map_match_mapzen():
     }
     responses.add(responses.POST, url, status=200, json=json)
 
-    r = map_match_mapzen(points_by_key, 'api_key')
+    r = match_with_mapzen(points_by_key, 'api_key')
     assert isinstance(r, dict)
     assert len(r) == len(points_by_key)
 
 @responses.activate
-def test_map_match_osrm():
+def test_match_with_osrm():
     # Create mock response
     url = 'http://router.project-osrm.org/match/v1/car'  # URL prefix
     url = re.compile(url + '*')
@@ -100,12 +100,12 @@ def test_map_match_osrm():
     }
     responses.add(responses.GET, url, status=200, json=json)
 
-    r = map_match_osrm(points_by_key)
+    r = match_with_osrm(points_by_key)
     assert isinstance(r, dict)
     assert len(r) == len(points_by_key)
 
 @responses.activate
-def test_map_match_mapbox():
+def test_match_with_mapbox():
     # Create mock response
     url = 'https://api.mapbox.com/matching/v5/mapbox/driving'
     url = re.compile(url + '*')
@@ -142,12 +142,12 @@ def test_map_match_mapbox():
     }
     responses.add(responses.GET, url, status=200, json=json)
 
-    r = map_match_mapbox(points_by_key, 'api_key')
+    r = match_with_mapbox(points_by_key, 'api_key')
     assert isinstance(r, dict)
     assert len(r) == len(points_by_key)
 
 @responses.activate
-def test_map_match_google():
+def test_match_with_google():
     # Create mock response
     url = 'https://roads.googleapis.com/v1/snapToRoads'
     json = {
@@ -170,6 +170,6 @@ def test_map_match_google():
     }
     responses.add(responses.GET, url, status=200, json=json)
 
-    r = map_match_google(points_by_key, 'api_key')
+    r = match_with_google(points_by_key, 'api_key')
     assert isinstance(r, dict)
     assert len(r) == len(points_by_key)

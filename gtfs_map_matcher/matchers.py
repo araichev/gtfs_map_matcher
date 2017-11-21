@@ -34,7 +34,7 @@ def parse_response_mapzen(response):
         points = []
     return points
 
-def map_match_mapzen(points_by_key, api_key,
+def match_with_mapzen(points_by_key, api_key,
   url='https://valhalla.mapzen.com/trace_route',
   **kwargs):
     """
@@ -93,7 +93,7 @@ def parse_response_osrm(response):
         points = []
     return points
 
-def map_match_osrm(points_by_key,
+def match_with_osrm(points_by_key,
   url='http://router.project-osrm.org/match/v1/car', **kwargs):
     """
     Public server accepts at most 100 points per request.
@@ -150,7 +150,7 @@ def parse_response_mapbox(response):
         points = []
     return points
 
-def map_match_mapbox(points_by_key, api_key, **kwargs):
+def match_with_mapbox(points_by_key, api_key, **kwargs):
     session = FuturesSession(max_workers=MAX_WORKERS)
 
     url = 'https://api.mapbox.com/matching/v5/mapbox/driving'
@@ -204,7 +204,7 @@ def parse_response_google(response):
         points = []
     return points
 
-def map_match_google(points_by_key, api_key):
+def match_with_google(points_by_key, api_key):
     session = FuturesSession(max_workers=MAX_WORKERS)
 
     url = 'https://roads.googleapis.com/v1/snapToRoads'
@@ -235,13 +235,13 @@ def map_match_google(points_by_key, api_key):
 #     """
 #     """
 #     if service == 'mapzen':
-#         return map_match_mapzen(points_by_key, api_key, **kwargs)
+#         return match_with_mapzen(points_by_key, api_key, **kwargs)
 #     elif service == 'osrm':
-#         return map_match_osrm(points_by_key, **kwargs)
+#         return match_with_osrm(points_by_key, **kwargs)
 #     elif service == 'mapbox':
-#         return map_match_mapbox(points_by_key, api_key, **kwargs)
+#         return match_with_mapbox(points_by_key, api_key, **kwargs)
 #     elif service == 'google':
-#         return map_match_google(points_by_key, api_key)
+#         return match_with_google(points_by_key, api_key)
 #     else:
 #         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
 #         raise ValueError('Service must be one of {!s}'.format(

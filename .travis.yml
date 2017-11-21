@@ -1,0 +1,15 @@
+notifications:
+  email: false
+language: python
+python:
+  - "3.4"
+  - "3.5"
+  - "3.6"
+# command to install dependencies
+install:
+  - "pip install pipenv"
+  - "pipenv install --dev"
+
+# command to run tests
+script:
+  - "pipenv run pytest"

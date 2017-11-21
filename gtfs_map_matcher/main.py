@@ -1,8 +1,14 @@
+import os
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
 from . import matchers
 
+
+ROOT = Path(os.path.abspath(os.path.dirname(__file__)))
+DATA_DIR = ROOT/'data'
 
 # GTFS route types of vehicles that travel on the road
 ROAD_ROUTE_TYPES = [0, 3, 5]
@@ -257,7 +263,7 @@ def _get_trip_ids(feed, route_types, trip_ids=None):
           'trip_id']
     return trip_ids
 
-def map_match_feed(feed, service, api_key, custom_url=None,
+def match_feed(feed, service, api_key, custom_url=None,
   route_types=ROAD_ROUTE_TYPES, trip_ids=None, num_points=100, point_dist=None,
   **kwargs):
     """
@@ -291,7 +297,7 @@ def map_match_feed(feed, service, api_key, custom_url=None,
       ferry, or gondola travel.
     - One map matching API call is made per (unique) stop pattern of
       the given trip set. Use the function
-      :func:`get_num_map_matching_calls` to compute the number of such
+      :func:`get_num_match_calls` to compute the number of such
       calls.
     """
     # Select relevant trip IDs
@@ -304,23 +310,23 @@ def map_match_feed(feed, service, api_key, custom_url=None,
     # Map match sample points
     if service == 'mapzen':
         if custom_url is not None:
-            mpoints_by_pattern = matchers.map_match_mapzen(
+            mpoints_by_pattern = matchers.match_with_mapzen(
               points_by_pattern, api_key, url=custom_url, **kwargs)
         else:
-            mpoints_by_pattern = matchers.map_match_mapzen(
+            mpoints_by_pattern = matchers.match_with_mapzen(
               points_by_pattern, api_key, **kwargs)
     elif service == 'osrm':
         if custom_url is not None:
-            mpoints_by_pattern = matchers.map_match_osrm(
+            mpoints_by_pattern = matchers.match_with_osrm(
               points_by_pattern, api_key, url=custom_url, **kwargs)
         else:
-            mpoints_by_pattern = matchers.map_match_osrm(
+            mpoints_by_pattern = matchers.match_with_osrm(
               points_by_pattern, api_key, **kwargs)
     elif service == 'mapbox':
-        mpoints_by_pattern = matchers.map_match_mapbox(
+        mpoints_by_pattern = matchers.match_with_mapbox(
           points_by_pattern, api_key, **kwargs)
     elif service == 'google':
-        mpoints_by_pattern = matchers.map_match_google(
+        mpoints_by_pattern = matchers.match_with_google(
           points_by_pattern, api_key, **kwargs)
     else:
         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
@@ -347,7 +353,7 @@ def map_match_feed(feed, service, api_key, custom_url=None,
 
     return feed
 
-def get_num_map_matching_calls(feed, route_types=ROAD_ROUTE_TYPES,
+def get_num_match_calls(feed, route_types=ROAD_ROUTE_TYPES,
   trip_ids=None):
     """
     Return the number of unique stop patterns for the given GTFS feed

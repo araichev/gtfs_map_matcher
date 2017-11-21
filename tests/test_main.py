@@ -57,7 +57,7 @@ def test_get_trip_ids():
     assert tids == [tid]
 
 @responses.activate
-def test_map_match_feed():
+def test_match_feed():
     # Create mock API response with a shape that only contains 2 points
     url = 'https://valhalla.mapzen.com/trace_route'
     json = {
@@ -99,17 +99,17 @@ def test_map_match_feed():
     responses.add(responses.POST, url, status=200, json=json)
 
     tid, shid = test_feed.trips[['trip_id', 'shape_id']].iloc[0].values
-    mm_feed = map_match_feed(test_feed, 'mapzen', 'key', trip_ids=[tid])
+    mm_feed = match_feed(test_feed, 'mapzen', 'key', trip_ids=[tid])
     test_shapes = test_feed.shapes[test_feed.shapes.shape_id == shid]
     assert test_shapes.shape[0] > 2
     mm_shapes = mm_feed.shapes[mm_feed.shapes.shape_id == shid]
     assert mm_shapes.shape[0] == 2
 
-def test_get_num_map_matching_calls():
+def test_get_num_match_calls():
     route_types = test_feed.routes.route_type.unique()
-    n = get_num_map_matching_calls(test_feed, route_types=route_types)
+    n = get_num_match_calls(test_feed, route_types=route_types)
     assert n == get_stop_patterns(test_feed).stop_pattern.nunique()
 
     tid = test_feed.trips.trip_id.iat[0]
-    n = get_num_map_matching_calls(test_feed, trip_ids=[tid])
+    n = get_num_match_calls(test_feed, trip_ids=[tid])
     assert n == 1
