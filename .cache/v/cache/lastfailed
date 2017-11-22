@@ -1,0 +1,4 @@
+{
+  "tests/test_main.py::test_build_sample_points": true,
+  "tests/test_main.py::test_get_num_matching_calls": true
+}
