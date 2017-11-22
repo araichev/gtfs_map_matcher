@@ -1,7 +1,11 @@
 GTFS Map Matcher
 *****************
-A Python 3.4+ library to match General Transit Feed Specification (GTFS) shapes to Open Street Map.
-Inspired by `bus-router <https://github.com/atlregional/bus-router>`_.
+A Python 3.4+ library to match General Transit Feed Specification (GTFS) shapes to Open Street Map using any of the following web services:
+
+- Mapzen Map Matching (remote or `local <https://github.com/valhalla/valhalla>`_ server)
+- OSRM Map Matching (remote or `local <https://github.com/Project-OSRM/osrm-backend>`_ server)
+- Mapbox Map Matching (remote server)
+- Google Snap to Roads (remote server); snaps to Google's road database instead of Open Street Map
 
 
 Installation
@@ -21,8 +25,9 @@ Authors
 
 Notes
 ======
+- Project inspired by `bus-router <https://github.com/atlregional/bus-router>`_.
 - Development status is Alpha
-- This project uses semantic versioning
+- Uses semantic versioning
 - Thanks to `MRCagney <http://www.mrcagney.com>`_ for partially funding this project
 
 

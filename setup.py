@@ -11,7 +11,7 @@ with open('LICENSE.txt') as f:
     license = f.read()
 
 setup(
-    name='gtfstk',
+    name='gtfs_map_matcher',
     version=__version__,
     author='Alexander Raichev',
     url='https://github.com/araichev/gtfs_map_matcher',
