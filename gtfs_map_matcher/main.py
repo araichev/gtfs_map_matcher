@@ -81,7 +81,7 @@ def insert_points_by_dist(xs, d):
     ys = np.array([i*d for i in range(len(bins)) if i not in filled_bins])
     return np.sort(np.concatenate([xs, ys]))
 
-def get_stop_patterns(feed, trip_ids=None, sep='-'):
+def get_stop_patterns(feed, trip_ids=None, sep='->'):
     """
     Append to the DataFrame``feed.trips`` the additional column
 
@@ -104,7 +104,7 @@ def get_stop_patterns(feed, trip_ids=None, sep='-'):
 
     return feed.trips.merge(f)
 
-def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
+def sample_trip_points(feed, trip_ids=None, point_dist=None, num_points=None):
     """
     Given a GTFS feed (GTFSTK Feed instance),
     preferably with a ``feed.stop_times.shape_dist_traveled`` column,
@@ -113,28 +113,29 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
     stop pattern
     -> list of (longitude, latitude) sample points along trip.
 
-    Regarding the list of sample points, first suppose
-    that ``point_dist`` is ``None`` and consider a stop pattern
-    with k stops and its representative trip.
-    If k < n, the trip has a shape, and all the ``shape_dist_traveled``
-    values of the trip's stop times are present, then the sample points
-    comprise the k stops of the trip along with ``n - k`` additional
-    points somewhat evenly sampled from the trip's shape, all in the
-    order of the trip's travel.
-    Else if k > n, then the sample points include only n stops:
-    no points (n=0); the first stop (n=1);
-    the first and the last stop (n=2);
-    the first, last, and n - k random stops (n > 2).
-    Else, the sample points are the k stops.
+    The sample points are chosen in one of three ways.
+    Consider a stop pattern with k stops and its representative trip.
 
-    Now suppose that a positive float ``point_dist`` is given and is
-    measured in the distance units of the feed.
-    If the trip has a shape and all the ``shape_dist_traveled`` values
-    of the trip's stop times are present, then the sample points
-    comprise the k stops of the trip along with the least number points
-    sampled along the trip shape so that consecutive points are no
-    more than ``point_dist`` apart.
-    Else, the sample points are the k stop.
+    1. If a positive float ``point_dist`` is given, representing
+      distance in terms of the feed's distance units, then do the
+      following. If the trip has a shape and all the
+      ``shape_dist_traveled`` values of the trip's stop times are
+      present, then the sample points comprise the k stops of the trip
+      along with the least number points sampled along the trip shape
+      so that consecutive points are no more than ``point_dist`` apart.
+      Else, the sample points are the k stop.
+    2. Else if an integer n = ``num_points`` is given then do the
+      following. If k < n, the trip has a shape, and all the
+      ``shape_dist_traveled`` values of the trip's stop times are
+      present, then use as sample points the k stops of the trip
+      along with ``n - k`` additional points somewhat evenly sampled
+      from the trip's shape, all in the order of the trip's travel.
+      Else if k > n, then choose as sample points only n stops:
+      no points (n=0); the first stop (n=1);
+      the first and the last stop (n=2);
+      the first, last, and n - k random stops (n > 2).
+      Else, choose as sample points the k stops.
+    3. Else use the k stop points of the pattern.
 
     If a list of trip IDs is given, then restrict to the stop patterns
     of those trips.
@@ -187,7 +188,7 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
     # Since it contains unique stop patterns, no computations will be repeated.
     points_by_pattern = {}
     if point_dist is not None:
-        # Insert points into stop points by distance
+        # Use stop points and insert more points by distance
         for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
             if (shape_id in geom_by_shape)\
@@ -205,8 +206,9 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
                 points = group[['stop_lon', 'stop_lat']].values.tolist()
 
             points_by_pattern[pattern] = points
-    else:
-        # Insert points into stop points by number
+
+    elif num_points is not None:
+        # Use stop points and insert more points by number
         n = num_points
         for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
@@ -248,6 +250,12 @@ def sample_trip_points(feed, trip_ids=None, num_points=100, point_dist=None):
 
             points_by_pattern[pattern] = points
 
+    else:
+        # Use stop points only
+        for pattern, group in st.groupby('stop_pattern'):
+            points = group[['stop_lon', 'stop_lat']].values.tolist()
+            points_by_pattern[pattern] = points
+
     return points_by_pattern
 
 def _get_trip_ids(feed, route_types, trip_ids=None):
@@ -263,9 +271,8 @@ def _get_trip_ids(feed, route_types, trip_ids=None):
           'trip_id']
     return trip_ids
 
-def match_feed(feed, service, api_key, custom_url=None,
-  route_types=ROAD_ROUTE_TYPES, trip_ids=None, num_points=100, point_dist=None,
-  **kwargs):
+def match_feed(feed, service, api_key, route_types=ROAD_ROUTE_TYPES,
+  trip_ids=None, point_dist=None, num_points=None, **service_opts):
     """
     Given a GTFS feed (GTFSTK Feed instance), the name of a map matching
     web service (``'mapzen'``, ``'osrm'``, ``'mapbox'``, or
@@ -274,8 +281,8 @@ def match_feed(feed, service, api_key, custom_url=None,
     #. Select all trips of the given route types (defaults to road-based
       route types) xor of the given trip IDs (defaults to all trip IDs).
     #. Sample trip points using the function :func:`sample_trip_points`
-      with the arguments ``num_points`` and ``point_dist``.  Only one
-      list of sample points per stop pattern (not per trip ID)
+      with the arguments ``point_dist`` and ``num_points``.
+      Only one list of sample points per stop pattern (not per trip ID)
       will be created.
     #. Snap the sample points to a map and route through those points
       using the given web service via the appropriate map matching
@@ -290,7 +297,7 @@ def match_feed(feed, service, api_key, custom_url=None,
     NOTES:
 
     - Extra parameters can be passed to the map matching function of
-      choice using the extra keyword arguments.
+      choice using the extra keyword arguments ``service_opts``.
     - At present, the map matching services only work well for road
       travel, hence the default setting
       ``route_types=ROAD_ROUTE_TYPES``. Not yet suitable for rail,
@@ -299,6 +306,12 @@ def match_feed(feed, service, api_key, custom_url=None,
       the given trip set. Use the function
       :func:`get_num_match_calls` to compute the number of such
       calls.
+    - Each map matching service accepts at most 100 points per query,
+      so setting ``num_points`` greater than that will return empty
+      results. This limit can be avoided by using a local deployment
+      of the Mapzen or OSRM service.
+    - Every empty map matching service result will be ignored and the
+      corresponding feed shape(s) will not be updated.
     """
     # Select relevant trip IDs
     trip_ids = _get_trip_ids(feed, route_types, trip_ids)
@@ -309,25 +322,17 @@ def match_feed(feed, service, api_key, custom_url=None,
 
     # Map match sample points
     if service == 'mapzen':
-        if custom_url is not None:
-            mpoints_by_pattern = matchers.match_with_mapzen(
-              points_by_pattern, api_key, url=custom_url, **kwargs)
-        else:
-            mpoints_by_pattern = matchers.match_with_mapzen(
-              points_by_pattern, api_key, **kwargs)
+        mpoints_by_pattern = matchers.match_with_mapzen(
+          points_by_pattern, api_key, **service_opts)
     elif service == 'osrm':
-        if custom_url is not None:
-            mpoints_by_pattern = matchers.match_with_osrm(
-              points_by_pattern, api_key, url=custom_url, **kwargs)
-        else:
-            mpoints_by_pattern = matchers.match_with_osrm(
-              points_by_pattern, api_key, **kwargs)
+        mpoints_by_pattern = matchers.match_with_osrm(
+          points_by_pattern, **service_opts)
     elif service == 'mapbox':
         mpoints_by_pattern = matchers.match_with_mapbox(
-          points_by_pattern, api_key, **kwargs)
+          points_by_pattern, api_key, **service_opts)
     elif service == 'google':
         mpoints_by_pattern = matchers.match_with_google(
-          points_by_pattern, api_key, **kwargs)
+          points_by_pattern, api_key, **service_opts)
     else:
         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
         raise ValueError('Service must be one of {!s}'.format(

@@ -35,15 +35,25 @@ def test_get_stop_patterns():
 
 def test_sample_trip_points():
     trip_id = test_feed.trips.trip_id.iat[0]
-    d = sample_trip_points(test_feed, [trip_id], 30)
-    assert len(d) == 1
-    pattern, points = list(d.items())[0]
-    assert len(points) == 30
 
+    # Point dist
     d = sample_trip_points(test_feed, [trip_id], point_dist=0.010)
     assert len(d) == 1
     pattern, points = list(d.items())[0]
     assert len(points) > 100
+
+    # Num points
+    d = sample_trip_points(test_feed, [trip_id], num_points=30)
+    assert len(d) == 1
+    pattern, points = list(d.items())[0]
+    assert len(points) == 30
+
+    # Stops
+    d = sample_trip_points(test_feed, [trip_id])
+    assert len(d) == 1
+    pattern, points = list(d.items())[0]
+    assert len(points) == len(pattern.split('->'))
+
 
 def test_get_trip_ids():
     tids = _get_trip_ids(test_feed, [3])
