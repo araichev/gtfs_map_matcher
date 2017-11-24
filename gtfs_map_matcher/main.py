@@ -104,7 +104,8 @@ def get_stop_patterns(feed, trip_ids=None, sep='->'):
 
     return feed.trips.merge(f)
 
-def sample_trip_points(feed, trip_ids=None, point_dist=None, num_points=None):
+def sample_trip_points(feed, trip_ids=None, method='stop_multiplier',
+  value=1):
     """
     Given a GTFS feed (GTFSTK Feed instance),
     preferably with a ``feed.stop_times.shape_dist_traveled`` column,
@@ -187,8 +188,9 @@ def sample_trip_points(feed, trip_ids=None, point_dist=None, num_points=None):
     # Build dict stop pattern -> list of (lon, lat) sample points.
     # Since it contains unique stop patterns, no computations will be repeated.
     points_by_pattern = {}
-    if point_dist is not None:
+    if method == 'distance':
         # Use stop points and insert more points by distance
+        d = value
         for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
             if (shape_id in geom_by_shape)\
@@ -197,19 +199,19 @@ def sample_trip_points(feed, trip_ids=None, point_dist=None, num_points=None):
                 # coordinate systems.
                 D = group['shape_dist_traveled'].max()
                 dists = group['shape_dist_traveled'].values/D
-                new_dists = insert_points_by_dist(dists, point_dist/D)
+                new_dists = insert_points_by_dist(dists, d/D)
                 geom = geom_by_shape[shape_id]
-                points = [list(geom.interpolate(d, normalized=True).coords[0])
-                  for d in new_dists]
+                points = [list(geom.interpolate(x, normalized=True).coords[0])
+                  for x in new_dists]
             else:
                 # Best can do is use the stop points
                 points = group[['stop_lon', 'stop_lat']].values.tolist()
 
             points_by_pattern[pattern] = points
 
-    elif num_points is not None:
+    elif method == 'num_points':
         # Use stop points and insert more points by number
-        n = num_points
+        n = value
         for pattern, group in st.groupby('stop_pattern'):
             shape_id = group['shape_id'].iat[0]
             k = group.shape[0]  # Number of stops along trip
@@ -250,8 +252,9 @@ def sample_trip_points(feed, trip_ids=None, point_dist=None, num_points=None):
 
             points_by_pattern[pattern] = points
 
-    else:
+    elif method == 'stop_multiplier':
         # Use stop points only
+        m = value
         for pattern, group in st.groupby('stop_pattern'):
             points = group[['stop_lon', 'stop_lat']].values.tolist()
             points_by_pattern[pattern] = points
