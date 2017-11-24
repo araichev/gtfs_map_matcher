@@ -37,19 +37,22 @@ def test_sample_trip_points():
     trip_id = test_feed.trips.trip_id.iat[0]
 
     # Point dist
-    d = sample_trip_points(test_feed, [trip_id], point_dist=0.010)
+    d = sample_trip_points(test_feed, [trip_id], method='distance',
+      value=0.010)
     assert len(d) == 1
     pattern, points = list(d.items())[0]
     assert len(points) > 100
 
     # Num points
-    d = sample_trip_points(test_feed, [trip_id], num_points=30)
+    d = sample_trip_points(test_feed, [trip_id], method='num_points',
+      value=30)
     assert len(d) == 1
     pattern, points = list(d.items())[0]
     assert len(points) == 30
 
-    # Stops
-    d = sample_trip_points(test_feed, [trip_id])
+    # Stop multiplier
+    d = sample_trip_points(test_feed, [trip_id], method='stop_multiplier',
+      value=1)
     assert len(d) == 1
     pattern, points = list(d.items())[0]
     assert len(points) == len(pattern.split('->'))

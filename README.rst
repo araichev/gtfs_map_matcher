@@ -37,6 +37,11 @@ Notes
 Changes
 ========
 
+v2.0.0, 2017-11-23
+--------------------
+- Improved the interface to the various sample point methods
+
+
 v1.0.0, 2017-11-23
 --------------------
 - First release
