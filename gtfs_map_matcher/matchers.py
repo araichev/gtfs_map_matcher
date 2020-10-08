@@ -1,6 +1,7 @@
 """
 API functions for several popular map matching services.
 """
+from typing import List
 from functools import partial
 
 import polyline
@@ -11,46 +12,49 @@ MAX_WORKERS = 50  # Max number of concurrent threads for async HTTP requests
 
 
 # OSRM matching functions ----------
-def encode_points_osrm(points):
+def encode_points_osrm(points: List[List[float]]) -> str:
     """
-    Given a list of longitude-latitude points, return their dictionary
+    Given a list of longitude-latitude points, return their string
     representation suitable for OSRM's Map Matching API
     """
-    return (';').join(['{!s},{!s}'.format(p[0], p[1]) for p in points])
+    return (";").join(["{!s},{!s}".format(p[0], p[1]) for p in points])
 
-def decode_points_osrm(points):
+
+def decode_points_osrm(points: str) -> List[List[float]]:
     """
     Inverse of function :func:`encode_points_osrm`.
     """
-    return [[float(x) for x in p.split(',')] for p in points.split(';')]
+    return [[float(x) for x in p.split(",")] for p in points.split(";")]
+
 
 def parse_response_osrm(response):
     try:
         r = response.json()
         pline = []
-        for m in r['matchings']:
-            pline.extend(polyline.decode(m['geometry'], 6))
+        for m in r["matchings"]:
+            pline.extend(polyline.decode(m["geometry"], 6))
         points = [[p[1], p[0]] for p in pline]
     except KeyError:
         points = []
     return points
 
+
 def match_with_osrm(
-    points_and_ids,
-    url='http://router.project-osrm.org/match/v1/car',
+    points_and_ids: List[List],
+    url: str = "http://router.project-osrm.org/match/v1/car",
     **kwargs
-):
+) -> List[List]:
     """
     Public server accepts at most 100 points per request.
     """
     session = FuturesSession(max_workers=MAX_WORKERS)
 
     def build_url(points):
-        return '{!s}/{!s}'.format(url, encode_points_osrm(points))
+        return "{!s}/{!s}".format(url, encode_points_osrm(points))
 
     params = {
-        'geometries': 'polyline6',
-        'overview': 'full',
+        "geometries": "polyline6",
+        "overview": "full",
     }
     if kwargs:
         params.update(kwargs)
@@ -65,53 +69,55 @@ def match_with_osrm(
 
     futures = (
         session.get(
-            build_url(points),
-            params=params,
-            hooks={"response": partial(parse, id_)},
+            build_url(points), params=params, hooks={"response": partial(parse, id_)},
         )
         for points, id_ in points_and_ids
     )
 
     return [f.result().data for f in futures if f.result().data]
 
+
 # Mapbox (which uses OSRM) map matching functions ----------
-def encode_points_mapbox(points):
+def encode_points_mapbox(points: List[List[float]]) -> str:
     """
     Given a list of longitude-latitude points, return their dictionary
     representation suitable for Mapbox's Map Matching API;
     see https://www.mapbox.com/api-documentation/#map-matching
     """
-    return (';').join(['{!s},{!s}'.format(p[0], p[1]) for p in points])
+    return (";").join(["{!s},{!s}".format(p[0], p[1]) for p in points])
 
-def decode_points_mapbox(points):
+
+def decode_points_mapbox(points: str) -> List[List[float]]:
     """
     Inverse of function :func:`encode_points_mapzen`.
     """
-    return [[float(x) for x in p.split(',')] for p in points.split(';')]
+    return [[float(x) for x in p.split(",")] for p in points.split(";")]
+
 
 def parse_response_mapbox(response):
     try:
         r = response.json()
         pline = []
-        for m in r['matchings']:
-            pline.extend(polyline.decode(m['geometry'], 6))
+        for m in r["matchings"]:
+            pline.extend(polyline.decode(m["geometry"], 6))
         points = [[p[1], p[0]] for p in pline]
     except KeyError:
         points = []
     return points
 
-def match_with_mapbox(points_and_ids, api_key, **kwargs):
+
+def match_with_mapbox(points_and_ids: List[List], api_key: str, **kwargs):
     session = FuturesSession(max_workers=MAX_WORKERS)
 
-    url = 'https://api.mapbox.com/matching/v5/mapbox/driving'
+    url = "https://api.mapbox.com/matching/v5/mapbox/driving"
 
     def build_url(points):
-        return '{!s}/{!s}'.format(url, encode_points_mapbox(points))
+        return "{!s}/{!s}".format(url, encode_points_mapbox(points))
 
     params = {
-        'access_token': api_key,
-        'geometries': 'polyline6',
-        'overview': 'full',
+        "access_token": api_key,
+        "geometries": "polyline6",
+        "overview": "full",
     }
     if kwargs:
         params.update(kwargs)
@@ -126,50 +132,54 @@ def match_with_mapbox(points_and_ids, api_key, **kwargs):
 
     futures = (
         session.get(
-            build_url(points),
-            params=params,
-            hooks={"response": partial(parse, id_)},
+            build_url(points), params=params, hooks={"response": partial(parse, id_)},
         )
         for points, id_ in points_and_ids
     )
 
     return [f.result().data for f in futures if f.result().data]
 
+
 # Google map matching functions -------------
-def encode_points_google(points):
+def encode_points_google(points: List[List]) -> str:
     """
     Given a list of longitude-latitude points, return their string
     representation suitable for Google's Snap to Roads API;
     see https://developers.google.com/maps/documentation/roads/snap.
     """
-    return ('|').join(['{:.06f},{:.06f}'.format(p[1], p[0]) for p in points])
+    return ("|").join(["{:.06f},{:.06f}".format(p[1], p[0]) for p in points])
 
-def decode_points_google(points):
+
+def decode_points_google(points: str) -> List[List]:
     """
     Inverse of function :func:`encode_points_google`.
     """
-    return [[float(x) for x in p.split(',')[::-1]] for p in points.split('|')]
+    return [[float(x) for x in p.split(",")[::-1]] for p in points.split("|")]
+
 
 def parse_response_google(response):
     try:
         r = response.json()
-        points = [[p['location']['longitude'], p['location']['latitude']]
-          for p in r['snappedPoints']]
+        points = [
+            [p["location"]["longitude"], p["location"]["latitude"]]
+            for p in r["snappedPoints"]
+        ]
     except KeyError:
         points = []
     return points
 
-def match_with_google(points_and_ids, api_key):
+
+def match_with_google(points_and_ids: List[List], api_key: str):
     session = FuturesSession(max_workers=MAX_WORKERS)
 
-    url = 'https://roads.googleapis.com/v1/snapToRoads'
+    url = "https://roads.googleapis.com/v1/snapToRoads"
 
     def build_params(points):
         return {
-          'key': api_key,
-          'path': encode_points_google(points),
-          'interpolate': True,
-          }
+            "key": api_key,
+            "path": encode_points_google(points),
+            "interpolate": True,
+        }
 
     def parse(id_, response, *args, **kwargs):
         mpoints = parse_response_google(response)
@@ -181,28 +191,9 @@ def match_with_google(points_and_ids, api_key):
 
     futures = (
         session.get(
-            url,
-            params=build_params(points),
-            hooks={"response": partial(parse, id_)},
+            url, params=build_params(points), hooks={"response": partial(parse, id_)},
         )
         for points, id_ in points_and_ids
     )
 
     return [f.result().data for f in futures if f.result().data]
-
-# # Match wrapper ----------
-# def map_match(points_and_ids, service, api_key, **kwargs):
-#     """
-#     """
-#     if service == 'mapzen':
-#         return match_with_mapzen(points_and_ids, api_key, **kwargs)
-#     elif service == 'osrm':
-#         return match_with_osrm(points_and_ids, **kwargs)
-#     elif service == 'mapbox':
-#         return match_with_mapbox(points_and_ids, api_key, **kwargs)
-#     elif service == 'google':
-#         return match_with_google(points_and_ids, api_key)
-#     else:
-#         valid_services = ['mapzen', 'osrm', 'mapbox', 'google']
-#         raise ValueError('Service must be one of {!s}'.format(
-#           valid_services))
