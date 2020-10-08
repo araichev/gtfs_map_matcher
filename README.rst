@@ -5,7 +5,6 @@ GTFS Map Matcher
 
 A Python 3.4+ library to match General Transit Feed Specification (GTFS) shapes to Open Street Map using any of the following web services:
 
-- Mapzen Map Matching (remote or `local <https://github.com/valhalla/valhalla>`_ server)
 - OSRM Map Matching (remote or `local <https://github.com/Project-OSRM/osrm-backend>`_ server)
 - Mapbox Map Matching (remote server)
 - Google Snap to Roads (remote server); snaps to Google's road database instead of Open Street Map
@@ -37,11 +36,17 @@ Notes
 Changes
 ========
 
-v2.0.0, 2017-11-23
+3.0.0, 2020-10-??
+-----------------
+- Upgraded to Python 3.8 and updated dependencies.
+- Removed functions involving the now defunct Mapzen service.
+
+
+2.0.0, 2017-11-23
 --------------------
 - Improved the interface to the various sample point methods
 
 
-v1.0.0, 2017-11-23
+1.0.0, 2017-11-23
 --------------------
 - First release

@@ -1,4 +1,5 @@
-ipynb/prototyping.ipynb
+.env
+notebooks/prototyping.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
