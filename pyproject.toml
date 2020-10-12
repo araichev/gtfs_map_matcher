@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gtfs_map_matcher"
-version = "3.0.0"
+version = "3.0.1"
 description = "A Python 3.8+ library to mshapes to Open Street Map roads"
 authors = ["Alex Raichev <araichev@mrcagney.com>"]
 license = "MIT"
