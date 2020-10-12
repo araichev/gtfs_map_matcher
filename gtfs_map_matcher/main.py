@@ -120,8 +120,8 @@ def get_stop_patterns(
 def sample_trip_points(
     feed: "Feed",
     trip_ids: Optional[List[str]] = None,
-    method: str = "stop_multiplier",
-    value: float = 1,
+    method: str = "num_points",
+    value: float = 100,
 ) -> List[List]:
     """
     Given a GTFS feed (GTFSTK Feed instance),
@@ -138,10 +138,10 @@ def sample_trip_points(
       float, then do the following. Interpret d as a distance measured
       in the the feed's distance units. If the trip has a shape and all
       the ``shape_dist_traveled`` values of the trip's stop times are
-      present, then choose as sample points the k stops of the trip
+      present, then choose as sample points the stops of the trip
       along with the least number of points sampled along the trip shape
-      so that consecutive points are no more than distance d apart.
-      Else, choose as sample points the k stops.
+      so that consecutive sample points are no more than distance d apart.
+      Else, choose as sample points the stops.
     2. Else if ``method == 'num_points'`` and n = ``value`` is a
       positive integer, then do the following. If k < n, the trip has a
       shape, and all the ``shape_dist_traveled`` values of the trip's
@@ -159,7 +159,7 @@ def sample_trip_points(
       ``'num_points'``.  In particular, using ``value = 1`` will choose
       the stop points as sample points. Note that in this method n
       depends on k, which varies for each trip, whereas as in
-      the ``num_points`` method, n is chose independently of k.
+      the ``num_points`` method, n is chosen independently of k.
 
     Raise a value error if the method and value given differ from the
     options above.
@@ -262,7 +262,7 @@ def sample_trip_points(
                 new_dists = insert_points_by_num(dists, n - k)
                 geom = geom_by_shape[shape_id]
                 points = [
-                    list(geom.interpolate(d, normalized=True).coords[0]) + [d]
+                    list(geom.interpolate(d, normalized=True).coords[0])
                     for d in new_dists
                 ]
             elif k > n:
@@ -367,8 +367,8 @@ def match_feed(
     api_key: Optional[str] = None,
     route_types: List[int] = ROAD_ROUTE_TYPES,
     trip_ids: Optional[List[str]] = None,
-    method: str = "stop_multiplier",
-    value: float = 1,
+    method: str = "num_points",
+    value: float = 100,
     **service_opts
 ) -> "Feed":
     """

@@ -4,6 +4,7 @@ API functions for several popular map matching services.
 from typing import List
 from functools import partial
 
+from loguru import logger
 import polyline
 from requests_futures.sessions import FuturesSession
 
@@ -28,14 +29,16 @@ def decode_points_osrm(points: str) -> List[List[float]]:
 
 
 def parse_response_osrm(response):
-    try:
-        r = response.json()
+    r = response.json()
+    if "matchings" in r:
         pline = []
         for m in r["matchings"]:
             pline.extend(polyline.decode(m["geometry"], 6))
         points = [[p[1], p[0]] for p in pline]
-    except KeyError:
+    else:
+        logger.warning(r)
         points = []
+
     return points
 
 
@@ -95,14 +98,16 @@ def decode_points_mapbox(points: str) -> List[List[float]]:
 
 
 def parse_response_mapbox(response):
-    try:
-        r = response.json()
+    r = response.json()
+    if "matchings" in r:
         pline = []
         for m in r["matchings"]:
             pline.extend(polyline.decode(m["geometry"], 6))
         points = [[p[1], p[0]] for p in pline]
-    except KeyError:
+    else:
+        logger.warning(r)
         points = []
+
     return points
 
 
@@ -140,6 +145,44 @@ def match_with_mapbox(points_and_ids: List[List], api_key: str, **kwargs):
     return [f.result().data for f in futures if f.result().data]
 
 
+# def match_with_mapbox(points_and_ids: List[List], api_key: str, **kwargs):
+#     session = FuturesSession(max_workers=MAX_WORKERS)
+
+#     url = f"https://api.mapbox.com/matching/v5/mapbox/driving?access_token={api_key}"
+
+#     headers = {
+#         "Content-Type": "application/x-www-form-urlencoded",
+#     }
+#     def make_params(points, kwargs):
+#         params = {
+#             "geometries": "polyline6",
+#             "overview": "full",
+#             "coordinates": encode_points_mapbox(points),
+#         }
+
+#         if kwargs:
+#             params.update(kwargs)
+
+#         return params
+
+#     def parse(id_, response, *args, **kwargs):
+#         mpoints = parse_response_mapbox(response)
+#         if mpoints:
+#             data = (mpoints, id_)
+#         else:
+#             data = None
+#         response.data = data
+
+#     futures = (
+#         session.post(
+#             url, data=make_params(points, kwargs), headers=headers, hooks={"response": partial(parse, id_)},
+#         )
+#         for points, id_ in points_and_ids
+#     )
+
+#     return [f.result().data for f in futures if f.result().data]
+
+
 # Google map matching functions -------------
 def encode_points_google(points: List[List]) -> str:
     """
@@ -158,14 +201,16 @@ def decode_points_google(points: str) -> List[List]:
 
 
 def parse_response_google(response):
-    try:
-        r = response.json()
+    r = response.json()
+    if "snappedPoints" in r:
         points = [
             [p["location"]["longitude"], p["location"]["latitude"]]
             for p in r["snappedPoints"]
         ]
-    except KeyError:
+    else:
+        logger.warning(r)
         points = []
+
     return points
 
 

@@ -12,7 +12,7 @@ A Python 3.8+ library to match General Transit Feed Specification (GTFS) shapes 
 
 Installation
 =============
-``poetry install gtfs_map_matcher``
+``poetry add gtfs_map_matcher``
 
 
 Usage
@@ -36,11 +36,13 @@ Notes
 Changes
 ========
 
-3.0.0, 2020-10-??
+3.0.0, 2020-10-12
 -----------------
 - Upgraded to Python 3.8 and updated dependencies.
 - Removed functions involving the now defunct Mapzen service.
-- Refactored some, changing the form of some inputs
+- Refactored some, changing the form of some inputs.
+- Bugfixed ``sample_trip_points(method='num_points')``.
+- Added type hints.
 
 
 2.0.0, 2017-11-23
