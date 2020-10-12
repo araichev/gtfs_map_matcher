@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "gtfs_map_matcher"
+version = "3.0.0"
+description = "A Python 3.8+ library to mshapes to Open Street Map roads"
+authors = ["Alex Raichev <araichev@mrcagney.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.1.3"
+polyline = "^1.4.0"
+requests-futures = "^1.0.0"
+loguru = "^0.5.3"
+
+[tool.poetry.dev-dependencies]
+jupyter = "^1.0.0"
+python-dotenv = "^0.14.0"
+pytest = "^6.1.1"
+responses = "^0.12.0"
+folium = "^0.11.0"
+gtfs-kit = "^5.0.1"
+pre-commit = "^2.7.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
