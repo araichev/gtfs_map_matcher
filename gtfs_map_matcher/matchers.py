@@ -9,6 +9,7 @@ import polyline
 from requests_futures.sessions import FuturesSession
 
 
+logger.disable("gtfs_map_matcher")
 MAX_WORKERS = 50  # Max number of concurrent threads for async HTTP requests
 
 

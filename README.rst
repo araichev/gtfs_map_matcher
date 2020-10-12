@@ -36,6 +36,11 @@ Notes
 Changes
 ========
 
+3.0.1, 2020-10-13
+-----------------
+- Set better logging defaults.
+
+
 3.0.0, 2020-10-12
 -----------------
 - Upgraded to Python 3.8 and updated dependencies.
